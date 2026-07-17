@@ -1,15 +1,15 @@
 # ============================================================================
-# Cabinet Finger Joint Plugin for SketchUp - Version 3.2
+# Cabinet Finger Joint Plugin for SketchUp - Version 4.0
 # نمایه‌های اتصال کابینت با فینجر جوینت
 # ============================================================================
-# Version: 3.2 (Fixed UI - Dialog closes for selection)
-# Description: Creates finger joints for cabinet connections with simple UI
+# Version: 4.0 (No dialogs - Uses SketchUp menu only)
+# Description: Creates finger joints for cabinet connections
 # ============================================================================
 
 module CabinetFingerJoint
   
   PLUGIN_NAME = "Cabinet Finger Joint"
-  PLUGIN_VERSION = "3.2"
+  PLUGIN_VERSION = "4.0"
   
   # Measurements (in mm)
   FINGER_LENGTH = 120
@@ -26,174 +26,134 @@ module CabinetFingerJoint
   class << self
     
     def start_workflow
-      show_main_menu
+      # Automatically open the main menu with submenus
+      add_menu_items
+      show_status_message
     end
     
-    def show_main_menu
-      loop do
-        body_status = @body_component ? "✓ انتخاب شد: #{@body_component.name}" : "❌ انتخاب نشده"
-        shelf_status = @shelf_component ? "✓ انتخاب شد: #{@shelf_component.name}" : "❌ انتخاب نشده"
+    def add_menu_items
+      unless @menu_added
+        plugins_menu = UI.menu("Plugins")
+        submenu = plugins_menu.add_submenu("Cabinet Finger Joint")
         
-        message = "فینجر جوینت کابینت - نسخه #{PLUGIN_VERSION}\n\n" +
-                  "وضعیت:\n" +
-                  "بدنه: #{body_status}\n" +
-                  "شلف: #{shelf_status}\n\n" +
-                  "گزینه‌ها:\n" +
-                  "1 = انتخاب بدنه\n" +
-                  "2 = انتخاب شلف\n" +
-                  "3 = پیش‌نمایش\n" +
-                  "4 = اعمال\n" +
-                  "5 = خروج\n\n" +
-                  "کدام گزینه؟"
+        submenu.add_item("1. انتخاب بدنه (Select Body)") { select_body_component }
+        submenu.add_item("2. انتخاب شلف (Select Shelf)") { select_shelf_component }
+        submenu.add_item("-") {}
+        submenu.add_item("3. پیش‌نمایش (Preview)") { show_preview_geometry }
+        submenu.add_item("4. اعمال فینجر جوینت (Apply)") { apply_joints_final }
+        submenu.add_item("-") {}
+        submenu.add_item("وضعیت (Status)") { show_status }
+        submenu.add_item("پاک کردن (Clear)") { cleanup }
         
-        result = UI.inputbox(
-          ["انتخاب"],
-          ["1"],
-          message
-        )
-        
-        return if result.nil?
-        
-        choice = result[0].to_i
-        
-        case choice
-        when 1
-          select_body_component
-        when 2
-          select_shelf_component
-        when 3
-          show_preview_geometry
-        when 4
-          apply_joints_final
-          return
-        when 5
-          cleanup
-          return
-        else
-          UI.messagebox("گزینه نامعتبر! لطفاً 1 تا 5 را انتخاب کنید.", MB_OK, PLUGIN_NAME)
-        end
+        @menu_added = true
       end
+    end
+    
+    def show_status_message
+      body_name = @body_component ? @body_component.name : "---"
+      shelf_name = @shelf_component ? @shelf_component.name : "---"
+      
+      puts "=" * 60
+      puts "Cabinet Finger Joint - #{PLUGIN_VERSION}"
+      puts "=" * 60
+      puts "بدنه: #{body_name}"
+      puts "شلف: #{shelf_name}"
+      puts ""
+      puts "مراحل:"
+      puts "1. Plugins → Cabinet Finger Joint → انتخاب بدنه"
+      puts "2. بدنه را کلیک کنید"
+      puts "3. Plugins → Cabinet Finger Joint → انتخاب شلف"
+      puts "4. شلف را کلیک کنید"
+      puts "5. Plugins → Cabinet Finger Joint → پیش‌نمایش"
+      puts "6. Plugins → Cabinet Finger Joint → اعمال"
+      puts "=" * 60
+    end
+    
+    def show_status
+      body_info = @body_component ? "✓ #{@body_component.name}" : "❌ انتخاب نشده"
+      shelf_info = @shelf_component ? "✓ #{@shelf_component.name}" : "❌ انتخاب نشده"
+      
+      message = "وضعیت:\n\n" +
+                "بدنه: #{body_info}\n" +
+                "شلف: #{shelf_info}\n\n" +
+                "مرحله بعدی:\n"
+      
+      if @body_component.nil?
+        message += "1. بدنه را انتخاب کنید"
+      elsif @shelf_component.nil?
+        message += "2. شلف را انتخاب کنید"
+      else
+        message += "3. پیش‌نمایش یا اعمال را انتخاب کنید"
+      end
+      
+      puts message
     end
     
     def select_body_component
       model = Sketchup.active_model
+      selection = model.selection
       
-      # Clear selection first
-      model.selection.clear
-      
-      UI.messagebox(
-        "✓ در حالا بدنه کابینت را کلیک کنید\n\n" +
-        "سپس OK کلیک کنید تا ادامه دهیم",
-        MB_OK,
-        PLUGIN_NAME
-      )
-      
-      # Wait for user to select something
-      wait_for_selection
-      
-      if model.selection.length > 0
-        entity = model.selection[0]
-        
-        if entity.is_a?(Sketchup::ComponentInstance)
-          @body_component = entity
-          model.selection.clear
-          
-          bounds = @body_component.bounds
-          dims = {
-            length: (bounds.max.x - bounds.min.x).to_mm.round(0),
-            width: (bounds.max.y - bounds.min.y).to_mm.round(0),
-            height: (bounds.max.z - bounds.min.z).to_mm.round(0)
-          }
-          
-          UI.messagebox(
-            "✓ بدنه انتخاب شد!\n\n" +
-            "نام: #{@body_component.name}\n" +
-            "ابعاد: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm",
-            MB_OK,
-            PLUGIN_NAME
-          )
-        else
-          UI.messagebox(
-            "❌ خطا: لطفاً یک کمپوننت انتخاب کنید، نه یک گروپ یا شی دیگر",
-            MB_OK,
-            PLUGIN_NAME
-          )
-        end
-      else
-        UI.messagebox(
-          "❌ هیچ چیزی انتخاب نشد!",
-          MB_OK,
-          PLUGIN_NAME
-        )
+      if selection.length == 0
+        puts "❌ هیچ چیزی انتخاب نشد! لطفاً بدنه کابینت را کلیک کنید."
+        return
       end
+      
+      entity = selection[0]
+      
+      if !entity.is_a?(Sketchup::ComponentInstance)
+        puts "❌ خطا: لطفاً یک کمپوننت انتخاب کنید"
+        return
+      end
+      
+      @body_component = entity
+      selection.clear
+      
+      bounds = @body_component.bounds
+      dims = {
+        length: (bounds.max.x - bounds.min.x).to_mm.round(0),
+        width: (bounds.max.y - bounds.min.y).to_mm.round(0),
+        height: (bounds.max.z - bounds.min.z).to_mm.round(0)
+      }
+      
+      puts "✓ بدنه انتخاب شد!"
+      puts "  نام: #{@body_component.name}"
+      puts "  ابعاد: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm"
     end
     
     def select_shelf_component
       model = Sketchup.active_model
+      selection = model.selection
       
-      # Clear selection first
-      model.selection.clear
-      
-      UI.messagebox(
-        "✓ حالا شلف را کلیک کنید\n\n" +
-        "سپس OK کلیک کنید تا ادامه دهیم",
-        MB_OK,
-        PLUGIN_NAME
-      )
-      
-      # Wait for user to select something
-      wait_for_selection
-      
-      if model.selection.length > 0
-        entity = model.selection[0]
-        
-        if entity.is_a?(Sketchup::ComponentInstance)
-          @shelf_component = entity
-          model.selection.clear
-          
-          bounds = @shelf_component.bounds
-          dims = {
-            length: (bounds.max.x - bounds.min.x).to_mm.round(0),
-            width: (bounds.max.y - bounds.min.y).to_mm.round(0),
-            height: (bounds.max.z - bounds.min.z).to_mm.round(0)
-          }
-          
-          UI.messagebox(
-            "✓ شلف انتخاب شد!\n\n" +
-            "نام: #{@shelf_component.name}\n" +
-            "ابعاد: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm\n\n" +
-            "انگشت‌ها در جهت عرض شلف قرار می‌گیرند",
-            MB_OK,
-            PLUGIN_NAME
-          )
-        else
-          UI.messagebox(
-            "❌ خطا: لطفاً یک کمپوننت انتخاب کنید، نه یک گروپ یا شی دیگر",
-            MB_OK,
-            PLUGIN_NAME
-          )
-        end
-      else
-        UI.messagebox(
-          "❌ هیچ چیزی انتخاب نشد!",
-          MB_OK,
-          PLUGIN_NAME
-        )
+      if selection.length == 0
+        puts "❌ هیچ چیزی انتخاب نشد! لطفاً شلف را کلیک کنید."
+        return
       end
-    end
-    
-    def wait_for_selection
-      # Simple wait - user will click OK after selecting
-      sleep(0.5)
+      
+      entity = selection[0]
+      
+      if !entity.is_a?(Sketchup::ComponentInstance)
+        puts "❌ خطا: لطفاً یک کمپوننت انتخاب کنید"
+        return
+      end
+      
+      @shelf_component = entity
+      selection.clear
+      
+      bounds = @shelf_component.bounds
+      dims = {
+        length: (bounds.max.x - bounds.min.x).to_mm.round(0),
+        width: (bounds.max.y - bounds.min.y).to_mm.round(0),
+        height: (bounds.max.z - bounds.min.z).to_mm.round(0)
+      }
+      
+      puts "✓ شلف انتخاب شد!"
+      puts "  نام: #{@shelf_component.name}"
+      puts "  ابعاد: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm"
     end
     
     def show_preview_geometry
       if @body_component.nil? || @shelf_component.nil?
-        UI.messagebox(
-          "❌ خطا: لطفاً ابتدا بدنه و شلف را انتخاب کنید!",
-          MB_OK,
-          PLUGIN_NAME
-        )
+        puts "❌ خطا: ابتدا بدنه و شلف را انتخاب کنید!"
         return
       end
       
@@ -210,41 +170,21 @@ module CabinetFingerJoint
       
       begin
         create_preview_fingers(@preview_group, @shelf_component, model)
-        
-        result = UI.messagebox(
-          "👁️ پیش‌نمایش نمایش داده شد\n\n" +
-          "آیا این درست است؟",
-          MB_YESNO,
-          PLUGIN_NAME
-        )
-        
-        if result == IDNO
-          model.active_entities.erase_entities(@preview_group)
-          @preview_group = nil
-          UI.messagebox(
-            "پیش‌نمایش حذف شد.\n\n" +
-            "می‌توانید دوباره انتخاب کنید یا تنظیمات را تغییر دهید.",
-            MB_OK,
-            PLUGIN_NAME
-          )
-        end
-        
+        puts "👁️ پیش‌نمایش نمایش داده شد"
+        puts "اگر درست است، 'اعمال' را انتخاب کنید"
+        puts "اگر غلط است، 'پاک کردن' را انتخاب کنید"
       rescue => error
         if @preview_group
           model.active_entities.erase_entities(@preview_group)
           @preview_group = nil
         end
-        UI.messagebox("❌ خطا: #{error.message}", MB_OK, PLUGIN_NAME)
+        puts "❌ خطا: #{error.message}"
       end
     end
     
     def apply_joints_final
       if @body_component.nil? || @shelf_component.nil?
-        UI.messagebox(
-          "❌ خطا: لطفاً ابتدا بدنه و شلف را انتخاب کنید!",
-          MB_OK,
-          PLUGIN_NAME
-        )
+        puts "❌ خطا: ابتدا بدنه و شلف را انتخاب کنید!"
         return
       end
       
@@ -256,15 +196,6 @@ module CabinetFingerJoint
         @preview_group = nil
       end
       
-      result = UI.messagebox(
-        "⚠️ آیا مطمئن هستید؟\n\n" +
-        "فینجر‌جوینت ایجاد می‌شود...",
-        MB_YESNO,
-        PLUGIN_NAME
-      )
-      
-      return if result == IDNO
-      
       model.start_operation("Apply Finger Joints", true)
       
       begin
@@ -272,20 +203,16 @@ module CabinetFingerJoint
         create_pockets_on_body(@body_component, @shelf_component, model)
         model.commit_operation
         
-        UI.messagebox(
-          "✅ موفق!\n\n" +
-          "فینجر‌جوینت ایجاد شد:\n" +
-          "• شلف: 2 انگشت اضافه شد\n" +
-          "• بدنه: 2 جای انگشت حفر شد",
-          MB_OK,
-          PLUGIN_NAME
-        )
+        puts "✅ موفق!"
+        puts "فینجر جوینت ایجاد شد:"
+        puts "  • شلف: 2 انگشت اضافه شد"
+        puts "  • بدنه: 2 جای انگشت حفر شد"
         
         cleanup
         
       rescue => error
         model.abort_operation
-        UI.messagebox("❌ خطا: #{error.message}", MB_OK, PLUGIN_NAME)
+        puts "❌ خطا: #{error.message}"
       end
     end
     
@@ -296,6 +223,7 @@ module CabinetFingerJoint
         Sketchup.active_model.active_entities.erase_entities(@preview_group)
         @preview_group = nil
       end
+      puts "✓ پاک شد"
     end
     
     private
