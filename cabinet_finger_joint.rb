@@ -1,15 +1,15 @@
 # ============================================================================
-# Cabinet Finger Joint Plugin for SketchUp - Version 4.0
+# Cabinet Finger Joint Plugin for SketchUp - Version 5.0
 # نمایه‌های اتصال کابینت با فینجر جوینت
 # ============================================================================
-# Version: 4.0 (No dialogs - Uses SketchUp menu only)
+# Version: 5.0 (Pure Ruby - No Windows - Console only)
 # Description: Creates finger joints for cabinet connections
 # ============================================================================
 
 module CabinetFingerJoint
   
   PLUGIN_NAME = "Cabinet Finger Joint"
-  PLUGIN_VERSION = "4.0"
+  PLUGIN_VERSION = "5.0"
   
   # Measurements (in mm)
   FINGER_LENGTH = 120
@@ -26,9 +26,8 @@ module CabinetFingerJoint
   class << self
     
     def start_workflow
-      # Automatically open the main menu with submenus
       add_menu_items
-      show_status_message
+      show_welcome_message
     end
     
     def add_menu_items
@@ -36,72 +35,58 @@ module CabinetFingerJoint
         plugins_menu = UI.menu("Plugins")
         submenu = plugins_menu.add_submenu("Cabinet Finger Joint")
         
-        submenu.add_item("1. انتخاب بدنه (Select Body)") { select_body_component }
-        submenu.add_item("2. انتخاب شلف (Select Shelf)") { select_shelf_component }
+        submenu.add_item("1. Select Body | انتخاب بدنه") { select_body_component }
+        submenu.add_item("2. Select Shelf | انتخاب شلف") { select_shelf_component }
         submenu.add_item("-") {}
-        submenu.add_item("3. پیش‌نمایش (Preview)") { show_preview_geometry }
-        submenu.add_item("4. اعمال فینجر جوینت (Apply)") { apply_joints_final }
+        submenu.add_item("3. Preview | پیش‌نمایش") { show_preview_geometry }
+        submenu.add_item("4. Apply | اعمال") { apply_joints_final }
         submenu.add_item("-") {}
-        submenu.add_item("وضعیت (Status)") { show_status }
-        submenu.add_item("پاک کردن (Clear)") { cleanup }
+        submenu.add_item("Status | وضعیت") { show_status }
+        submenu.add_item("Clear | پاک کردن") { cleanup }
         
         @menu_added = true
       end
     end
     
-    def show_status_message
-      body_name = @body_component ? @body_component.name : "---"
-      shelf_name = @shelf_component ? @shelf_component.name : "---"
-      
-      puts "=" * 60
-      puts "Cabinet Finger Joint - #{PLUGIN_VERSION}"
-      puts "=" * 60
-      puts "بدنه: #{body_name}"
-      puts "شلف: #{shelf_name}"
+    def show_welcome_message
+      puts "\n"
+      puts "=" * 70
+      puts "Cabinet Finger Joint - Version #{PLUGIN_VERSION}".center(70)
+      puts "=" * 70
       puts ""
-      puts "مراحل:"
-      puts "1. Plugins → Cabinet Finger Joint → انتخاب بدنه"
-      puts "2. بدنه را کلیک کنید"
-      puts "3. Plugins → Cabinet Finger Joint → انتخاب شلف"
-      puts "4. شلف را کلیک کنید"
-      puts "5. Plugins → Cabinet Finger Joint → پیش‌نمایش"
-      puts "6. Plugins → Cabinet Finger Joint → اعمال"
-      puts "=" * 60
-    end
-    
-    def show_status
-      body_info = @body_component ? "✓ #{@body_component.name}" : "❌ انتخاب نشده"
-      shelf_info = @shelf_component ? "✓ #{@shelf_component.name}" : "❌ انتخاب نشده"
-      
-      message = "وضعیت:\n\n" +
-                "بدنه: #{body_info}\n" +
-                "شلف: #{shelf_info}\n\n" +
-                "مرحله بعدی:\n"
-      
-      if @body_component.nil?
-        message += "1. بدنه را انتخاب کنید"
-      elsif @shelf_component.nil?
-        message += "2. شلف را انتخاب کنید"
-      else
-        message += "3. پیش‌نمایش یا اعمال را انتخاب کنید"
-      end
-      
-      puts message
+      puts "روشن شد! به مراحل زیر عمل کنید:".center(70)
+      puts ""
+      puts "STEP 1: Click Body in the model, then:".ljust(70)
+      puts "        Plugins → Cabinet Finger Joint → 1. Select Body".ljust(70)
+      puts ""
+      puts "STEP 2: Click Shelf in the model, then:".ljust(70)
+      puts "        Plugins → Cabinet Finger Joint → 2. Select Shelf".ljust(70)
+      puts ""
+      puts "STEP 3: Plugins → Cabinet Finger Joint → 3. Preview".ljust(70)
+      puts ""
+      puts "STEP 4: Plugins → Cabinet Finger Joint → 4. Apply".ljust(70)
+      puts ""
+      puts "=" * 70
+      puts ""
     end
     
     def select_body_component
       model = Sketchup.active_model
       selection = model.selection
       
+      puts "\n--- SELECT BODY | انتخاب بدنه ---"
+      
       if selection.length == 0
-        puts "❌ هیچ چیزی انتخاب نشد! لطفاً بدنه کابینت را کلیک کنید."
+        puts "❌ ERROR: No component selected!"
+        puts "❌ خطا: هیچ چیزی انتخاب نشد!"
         return
       end
       
       entity = selection[0]
       
       if !entity.is_a?(Sketchup::ComponentInstance)
-        puts "❌ خطا: لطفاً یک کمپوننت انتخاب کنید"
+        puts "❌ ERROR: Must select a component, not a group!"
+        puts "❌ خطا: فقط کمپوننت انتخاب کنید!"
         return
       end
       
@@ -115,24 +100,29 @@ module CabinetFingerJoint
         height: (bounds.max.z - bounds.min.z).to_mm.round(0)
       }
       
-      puts "✓ بدنه انتخاب شد!"
-      puts "  نام: #{@body_component.name}"
-      puts "  ابعاد: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm"
+      puts "✓ Body selected successfully! | بدنه انتخاب شد!"
+      puts "  Name: #{@body_component.name}"
+      puts "  Size: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm"
+      puts ""
     end
     
     def select_shelf_component
       model = Sketchup.active_model
       selection = model.selection
       
+      puts "\n--- SELECT SHELF | انتخاب شلف ---"
+      
       if selection.length == 0
-        puts "❌ هیچ چیزی انتخاب نشد! لطفاً شلف را کلیک کنید."
+        puts "❌ ERROR: No component selected!"
+        puts "❌ خطا: هیچ چیزی انتخاب نشد!"
         return
       end
       
       entity = selection[0]
       
       if !entity.is_a?(Sketchup::ComponentInstance)
-        puts "❌ خطا: لطفاً یک کمپوننت انتخاب کنید"
+        puts "❌ ERROR: Must select a component, not a group!"
+        puts "❌ خطا: فقط کمپوننت انتخاب کنید!"
         return
       end
       
@@ -146,13 +136,34 @@ module CabinetFingerJoint
         height: (bounds.max.z - bounds.min.z).to_mm.round(0)
       }
       
-      puts "✓ شلف انتخاب شد!"
-      puts "  نام: #{@shelf_component.name}"
-      puts "  ابعاد: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm"
+      puts "✓ Shelf selected successfully! | شلف انتخاب شد!"
+      puts "  Name: #{@shelf_component.name}"
+      puts "  Size: #{dims[:length]} × #{dims[:width]} × #{dims[:height]} mm"
+      puts "  Fingers will be placed along shelf width (عرض شلف)"
+      puts ""
+    end
+    
+    def show_status
+      body_info = @body_component ? "✓ #{@body_component.name}" : "❌ Not selected"
+      shelf_info = @shelf_component ? "✓ #{@shelf_component.name}" : "❌ Not selected"
+      
+      puts "\n--- STATUS | وضعیت ---"
+      puts "Body | بدنه: #{body_info}"
+      puts "Shelf | شلف: #{shelf_info}"
+      
+      if @body_component.nil?
+        puts "\nNext step: Select body and click 'Select Body'"
+      elsif @shelf_component.nil?
+        puts "\nNext step: Select shelf and click 'Select Shelf'"
+      else
+        puts "\nNext step: Click 'Preview' to see the result"
+      end
+      puts ""
     end
     
     def show_preview_geometry
       if @body_component.nil? || @shelf_component.nil?
+        puts "\n❌ ERROR: Select both body and shelf first!"
         puts "❌ خطا: ابتدا بدنه و شلف را انتخاب کنید!"
         return
       end
@@ -170,20 +181,31 @@ module CabinetFingerJoint
       
       begin
         create_preview_fingers(@preview_group, @shelf_component, model)
-        puts "👁️ پیش‌نمایش نمایش داده شد"
-        puts "اگر درست است، 'اعمال' را انتخاب کنید"
-        puts "اگر غلط است، 'پاک کردن' را انتخاب کنید"
+        
+        puts "\n--- PREVIEW | پیش‌نمایش ---"
+        puts "✓ Preview created! | پیش‌نمایش نمایش داده شد!"
+        puts "  • Front finger: 60mm from front edge"
+        puts "  • Back finger: 60mm from back edge"
+        puts "  • Finger length: 120mm"
+        puts "  • Finger width: 8mm"
+        puts "  • Finger depth: 10mm"
+        puts ""
+        puts "If correct → Click 'Apply | اعمال'"
+        puts "If wrong → Click 'Clear | پاک کردن' and try again"
+        puts ""
+        
       rescue => error
         if @preview_group
           model.active_entities.erase_entities(@preview_group)
           @preview_group = nil
         end
-        puts "❌ خطا: #{error.message}"
+        puts "❌ ERROR: #{error.message}"
       end
     end
     
     def apply_joints_final
       if @body_component.nil? || @shelf_component.nil?
+        puts "\n❌ ERROR: Select both body and shelf first!"
         puts "❌ خطا: ابتدا بدنه و شلف را انتخاب کنید!"
         return
       end
@@ -199,20 +221,27 @@ module CabinetFingerJoint
       model.start_operation("Apply Finger Joints", true)
       
       begin
+        puts "\n--- APPLYING | در حال اعمال ---"
+        
         create_fingers_on_shelf(@shelf_component, model)
+        puts "  ✓ Fingers added to shelf"
+        
         create_pockets_on_body(@body_component, @shelf_component, model)
+        puts "  ✓ Pockets created on body"
+        
         model.commit_operation
         
-        puts "✅ موفق!"
-        puts "فینجر جوینت ایجاد شد:"
-        puts "  • شلف: 2 انگشت اضافه شد"
-        puts "  • بدنه: 2 جای انگشت حفر شد"
+        puts ""
+        puts "✅ SUCCESS! | موفق!"
+        puts "Finger joints created successfully!"
+        puts "فینجر جوینت‌ها با موفقیت ایجاد شدند!"
+        puts ""
         
         cleanup
         
       rescue => error
         model.abort_operation
-        puts "❌ خطا: #{error.message}"
+        puts "❌ ERROR: #{error.message}"
       end
     end
     
@@ -223,7 +252,8 @@ module CabinetFingerJoint
         Sketchup.active_model.active_entities.erase_entities(@preview_group)
         @preview_group = nil
       end
-      puts "✓ پاک شد"
+      puts "✓ Cleared | پاک شد"
+      puts ""
     end
     
     private
